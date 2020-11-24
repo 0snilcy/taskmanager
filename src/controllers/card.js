@@ -3,9 +3,20 @@ import { CardEdit } from "../components/card-edit";
 import { render } from "../components/utils";
 import flatpickr from "flatpickr";
 
-export const modeCard = {
+export const CardMode = {
   add: `adding`,
   default: `default`,
+};
+
+export const TaskActions = {
+  delete: `delete`,
+  update: `update`,
+  create: `create`,
+};
+
+export const CardState = {
+  READY: "READY",
+  LOADING: "LOADING",
 };
 
 export class CardController {
@@ -16,6 +27,14 @@ export class CardController {
     this._card = new Card(data);
     this._cardEdit = new CardEdit(data);
     this._currentColor = this._data.color;
+    this._currentView = null;
+    this._btnCardSave = this._cardEdit
+      .getElement()
+      .querySelector(`.card__save`);
+    this._btnCardDelete = this._cardEdit
+      .getElement()
+      .querySelector(`.card__delete`);
+    this._cardInner = this._cardEdit.getElement().querySelector(`.card__inner`);
 
     this._onDataChange = onDataChange;
     this._onChangeView = onChangeView;
@@ -23,10 +42,10 @@ export class CardController {
   }
 
   create() {
-    let currentView = this._card;
+    this._currentView = this._card;
 
-    if (this._mode === modeCard.add) {
-      currentView = this._cardEdit;
+    if (this._mode === CardMode.add) {
+      this._currentView = this._cardEdit;
     }
 
     const date = this._cardEdit.getElement().querySelector(`.card__date`);
@@ -43,15 +62,15 @@ export class CardController {
 
     const onEscKeyDown = (evt) => {
       if (evt.key === `Escape` || evt.key === `Esc`) {
-        if (this._mode === modeCard.default) {
+        if (this._mode === CardMode.default) {
           if (this._container.contains(this._cardEdit.getElement())) {
             this._container.replaceChild(
               this._card.getElement(),
               this._cardEdit.getElement()
             );
           }
-        } else if (this._mode === modeCard.add) {
-          this._container.removeChild(currentView.getElement());
+        } else if (this._mode === CardMode.add) {
+          this._container.removeChild(this._currentView.getElement());
         }
 
         document.removeEventListener(`keydown`, onEscKeyDown);
@@ -84,58 +103,58 @@ export class CardController {
         document.addEventListener(`keydown`, onEscKeyDown);
       });
 
-    this._cardEdit
-      .getElement()
-      .querySelector(`.card__delete`)
-      .addEventListener(`click`, () => {
-        this._onDataChange(null, this._data);
-      });
+    this._btnCardDelete.addEventListener(`click`, (evt) => {
+      const { stateText } = evt.target.dataset;
+      this.setState(CardState.LOADING);
+      this._btnCardDelete.textContent = stateText;
 
-    this._cardEdit
-      .getElement()
-      .querySelector(`.card__save`)
-      .addEventListener(`click`, () => {
-        this._container.replaceChild(
-          this._card.getElement(),
-          this._cardEdit.getElement()
-        );
+      this._onDataChange(TaskActions.delete, this._data, () =>
+        this.setState(CardState.READY)
+      );
+    });
 
-        const formData = new FormData(
-          this._cardEdit.getElement().querySelector(`.card__form`)
-        );
+    this._btnCardSave.addEventListener(`click`, (evt) => {
+      evt.preventDefault();
+      const { stateText } = evt.target.dataset;
 
-        const entry = {
-          description: formData.get(`text`),
-          color: formData.get(`color`),
-          tags: new Set(formData.getAll(`hashtag`)),
-          dueDate: new Date(formData.get(`date`)),
-          dueTime: this._data.dueTime,
-          isRepeat: this._cardEdit._isRepeat,
-          isDate: this._cardEdit._isDate,
-          repeatingDays: formData.getAll(`repeat`).reduce(
-            (acc, it) => {
-              acc[it] = true;
-              return acc;
-            },
-            {
-              mo: false,
-              tu: false,
-              we: false,
-              th: false,
-              fr: false,
-              sa: false,
-              su: false,
-            }
-          ),
-        };
+      const formData = new FormData(
+        this._cardEdit.getElement().querySelector(`.card__form`)
+      );
 
-        this._onDataChange(
-          entry,
-          this._mode === modeCard.default ? this._data : null
-        );
+      this._data.description = formData.get(`text`);
+      this._data.color = formData.get(`color`);
+      this._data.tags = new Set(formData.getAll(`hashtag`));
+      this._data.dueDate = new Date(formData.get(`date`));
+      this._data.dueTime = this._data.dueTime;
+      this._data.isRepeat = this._cardEdit._isRepeat;
+      this._data.isDate = this._cardEdit._isDate;
+      this._data.repeatingDays = formData.getAll(`repeat`).reduce(
+        (acc, it) => {
+          acc[it] = true;
+          return acc;
+        },
+        {
+          mo: false,
+          tu: false,
+          we: false,
+          th: false,
+          fr: false,
+          sa: false,
+          su: false,
+        }
+      );
 
-        document.removeEventListener(`keydown`, onEscKeyDown);
-      });
+      this.setState(CardState.LOADING);
+      this._btnCardSave.textContent = stateText;
+
+      this._onDataChange(
+        this._mode === CardMode.add ? TaskActions.create : TaskActions.update,
+        this._data,
+        () => this.setState(CardState.READY)
+      );
+
+      document.removeEventListener(`keydown`, onEscKeyDown);
+    });
 
     this._cardEdit
       .getElement()
@@ -151,7 +170,26 @@ export class CardController {
         this._currentColor = evt.target.value;
       });
 
-    render(this._container, currentView.getElement());
+    render(this._container, this._currentView.getElement());
+  }
+
+  /* eslint-disable */
+  setState(state) {
+    this._cardInner.classList.remove(`border-error`);
+    this._cardEdit.getElement().classList.remove("shake");
+
+    this._cardEdit.getElement().querySelector(`.card__text`).disabled =
+      state === CardState.LOADING;
+    this._btnCardSave.disabled = state === CardState.LOADING;
+    this._btnCardDelete.disabled = state === CardState.LOADING;
+
+    if (state === CardState.READY) {
+      this._cardInner.classList.add(`border-error`);
+      this._cardEdit.getElement().classList.add(`shake`);
+
+      this._btnCardSave.textContent = `save`;
+      this._btnCardDelete.textContent = `delete`;
+    }
   }
 
   setDefaultView() {

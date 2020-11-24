@@ -11,7 +11,7 @@ export class StatisticsController {
     this._statistics = new Statistics();
   }
 
-  _renderStatistics() {
+  init() {
     render(main, this._statistics.getElement());
     this._renderCharts();
     this._statistics.getElement().classList.add(`visually-hidden`);
@@ -58,11 +58,6 @@ export class StatisticsController {
   }
 
   show() {
-    // TODO неочевидная логика скрытия и закрытия - обсудить с Олегом
-    if (!this._statistics.getElement().parentNode.parentNode) {
-      this._renderStatistics();
-    }
-
     this._statistics.getElement().classList.remove(`visually-hidden`);
   }
 
@@ -76,7 +71,6 @@ export class StatisticsController {
       (color) => this._cards.filter((elem) => color === elem.color).length
     );
 
-    // const tagsCtx = document.querySelector(`.statistic__tags`);
     const colorsWrap = this._statistics
       .getElement()
       .querySelector(`.statistic__colors-wrap`);
@@ -150,6 +144,5 @@ export class StatisticsController {
         canvas.style.width = `400px`;
         canvas.style.height = `300px`;
       });
-    // colorsCtx.style.height = `300px`;
   }
 }

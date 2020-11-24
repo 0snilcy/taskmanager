@@ -6,11 +6,12 @@ import { CardListController } from "./card-list";
 import { CardList } from "../components/card-list";
 import { Board } from "../components/board";
 
-const CARD_LOAD_COUNT = 8;
+const CARD_LOAD_COUNT = 4;
 export class BoardController {
-  constructor(cards) {
+  constructor(cards, onDataChange) {
     this._container = new CardList().getElement();
     this._cards = cards;
+    this._onDataChange = onDataChange.bind(this);
     this._board = new Board();
     this._sort = new Sort();
     this._bntLoadMore = new CreateLoadMore();
@@ -21,8 +22,10 @@ export class BoardController {
     this._subscriptions = [];
     this._cardListController = new CardListController(
       this._container,
-      this._onDataChange.bind(this)
+      this._onDataChange
     );
+
+    this._boardController = null;
   }
 
   show() {
@@ -38,17 +41,7 @@ export class BoardController {
     this._board.getElement().classList.add(`visually-hidden`);
   }
 
-  _renderBoard() {
-    const boardContainer = render(main, this._board.getElement());
-    render(boardContainer, this._sort.getElement());
-    render(boardContainer, this._container);
-
-    render(boardContainer, this._bntLoadMore.getElement());
-
-    if (this._showedCards >= this._cards.length) {
-      unrender(this._bntLoadMore.getElement());
-    }
-
+  _checkRenderBoard() {
     this._cardListController.setCards(this._cards.slice(0, this._showedCards));
 
     this._bntLoadMore
@@ -61,18 +54,28 @@ export class BoardController {
       .addEventListener(`click`, (evt) => this._onClickSort(evt));
   }
 
-  _cleanContainer() {
-    this._container.innerHTML = ``;
-    this._subscriptions.length = 0;
+  _renderBoard() {
+    const board = document.querySelector(`.board`);
+    if (board) {
+      main.removeChild(board);
+      this._checkRenderBoard();
+    }
+
+    // TODO переделать, чтобы board не удалялся, а очищался
+    this._boardController = render(main, this._board.getElement());
+    render(this._boardController, this._sort.getElement());
+    render(this._boardController, this._container);
+    render(this._boardController, this._bntLoadMore.getElement());
+
+    if (this._showedCards >= this._cards.length) {
+      unrender(this._bntLoadMore.getElement());
+    }
+    this._checkRenderBoard();
   }
 
-  _onDataChange(cards) {
-    this._cards = [...cards, ...this._cards.slice(this._showedCards)];
-
-    // Поправить, некорректно отрабатывает
-    this._showedCards = cards.length;
-
-    this._renderBoard();
+  _cleanContainer() {
+    this._container.innerHTML = ``;
+    this._subscriptions = [];
   }
 
   createCard() {
@@ -101,7 +104,6 @@ export class BoardController {
     this._cleanContainer();
 
     /* eslint-disable */
-
     switch (evt.target.dataset.sortType) {
       case `date-up`:
         const sortedDateUp = this._cards
